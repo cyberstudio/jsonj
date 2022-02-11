@@ -12,13 +12,13 @@ import (
 func TestProcess(t *testing.T) {
 	tests := []struct {
 		name  string
-		rules []Rule
+		rules []*Rule
 		input string
 		want  string
 	}{
 		{
 			name: "insert",
-			rules: []Rule{
+			rules: []*Rule{
 				NewInsertRule("mark", "key", generateMeta),
 			},
 			input: `{"mark": "value"}`,
@@ -26,7 +26,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "replace",
-			rules: []Rule{
+			rules: []*Rule{
 				NewReplaceRule("mark", "key", generateMeta),
 			},
 			input: `{"mark": "value"}`,
@@ -34,7 +34,7 @@ func TestProcess(t *testing.T) {
 		},
 		{
 			name: "delete",
-			rules: []Rule{
+			rules: []*Rule{
 				NewDeleteRule("mark"),
 			},
 			input: `{"mark": "value"}`,

@@ -19,15 +19,15 @@ type RuleSet struct {
 	re    *regexp.Regexp
 }
 
-func NewRuleSet(rules ...Rule) RuleSet {
+func NewRuleSet(rules ...*Rule) *RuleSet {
 	var set RuleSet
 	for _, rule := range rules {
-		set = set.AddRule(rule)
+		set.AddRule(rule)
 	}
-	return set
+	return &set
 }
 
-func (set RuleSet) AddRule(rule Rule) RuleSet {
+func (set *RuleSet) AddRule(rule *Rule) {
 	mark := rule.mark
 	if _, exists := set.rules[mark]; exists {
 		panic("rule for the mark already exists: " + mark)
@@ -35,9 +35,8 @@ func (set RuleSet) AddRule(rule Rule) RuleSet {
 	if set.rules == nil {
 		set.rules = make(map[string]*Rule)
 	}
-	set.rules[mark] = &rule
+	set.rules[mark] = rule
 	set.re = nil
-	return set
 }
 
 func (set *RuleSet) regexp() *regexp.Regexp {
@@ -82,7 +81,7 @@ func (i RuleMode) String() string {
 
 // Pass sets number of repeats for ruleset
 type Pass struct {
-	RuleSet RuleSet
+	RuleSet *RuleSet
 	Repeats int // no less than count of marks name connectivity in RuleSet, see pet_api_example_test.go
 }
 
@@ -93,26 +92,26 @@ type Rule struct {
 	genBatch    GenerateFragmentBatchFunc
 }
 
-func (r Rule) String() string {
+func (r *Rule) String() string {
 	return fmt.Sprintf("%s(%s)", r.mode, r.mark)
 }
 
-func NewInsertRule(mark, key string, batchFunc GenerateFragmentBatchFunc) Rule {
+func NewInsertRule(mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule {
 	return NewRule(ModeInsert, mark, key, batchFunc)
 }
 
-func NewReplaceRule(mark, key string, batchFunc GenerateFragmentBatchFunc) Rule {
+func NewReplaceRule(mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule {
 	return NewRule(ModeReplace, mark, key, batchFunc)
 }
 
-func NewDeleteRule(mark string) Rule {
+func NewDeleteRule(mark string) *Rule {
 	return NewRule(ModeDelete, mark, "", nil)
 }
 
 // NewRule creates new rule using specified params
 // mark is searchable field and key is new key value that replaces mark
 // For example, mark is '_uuid_', key is 'uuid'
-func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFunc) Rule {
+func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule {
 	if mode == ModeUndefined {
 		panic("mode undefined")
 	}
@@ -123,7 +122,7 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 		panic("key should not be equal mark")
 	}
 	if mode == ModeDelete {
-		return Rule{
+		return &Rule{
 			mark:        mark,
 			preparedKey: "",
 			mode:        mode,
@@ -139,7 +138,7 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 		panic("invalid key")
 	}
 	key = `"` + strings.ReplaceAll(key, `"`, `\"`) + `"`
-	return Rule{
+	return &Rule{
 		mark:        mark,
 		preparedKey: key,
 		mode:        mode,
@@ -282,7 +281,7 @@ func iterateMarks(
 	}
 }
 
-func doPassBatch(ctx context.Context, data []byte, set RuleSet, flags interface{}) ([]byte, error) {
+func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface{}) ([]byte, error) {
 	var fragments []*fragEntry
 	entriesPerRule := make(map[*Rule][]*fragEntry)
 
