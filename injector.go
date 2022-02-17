@@ -133,7 +133,7 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 			mark:        mark,
 			preparedKey: "",
 			mode:        mode,
-			genBatch:    emptyFragmentsGenerator,
+			genBatch:    EmptyFragmentsGenerator,
 		}
 	}
 
@@ -521,10 +521,10 @@ func findCommaPos(data []byte) (int, bool) {
 	panic("invalid json")
 }
 
-func emptyFragmentsGenerator(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
+func EmptyFragmentsGenerator(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
 	var entities []interface{}
 	for iterator.Next() {
-		entities = append(entities, "")
+		entities = append(entities, struct{}{})
 	}
 	return entities, nil
 }
