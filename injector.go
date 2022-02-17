@@ -59,15 +59,18 @@ type RuleMode int
 
 const (
 	ModeUndefined RuleMode = iota
-	ModeReplace
 	ModeInsert
 	ModeDelete
+	ModeReplace
+	ModeReplaceValue
 )
 
 func (i RuleMode) String() string {
 	switch i {
 	case ModeUndefined:
 		return "Undefined"
+	case ModeReplaceValue:
+		return "ReplaceValue"
 	case ModeReplace:
 		return "Replace"
 	case ModeInsert:
@@ -100,8 +103,12 @@ func NewInsertRule(mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule 
 	return NewRule(ModeInsert, mark, key, batchFunc)
 }
 
-func NewReplaceRule(mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule {
-	return NewRule(ModeReplace, mark, key, batchFunc)
+func NewReplaceRule(mark string, batchFunc GenerateFragmentBatchFunc) *Rule {
+	return NewRule(ModeReplace, mark, "", batchFunc)
+}
+
+func NewReplaceValueRule(mark, key string, batchFunc GenerateFragmentBatchFunc) *Rule {
+	return NewRule(ModeReplaceValue, mark, key, batchFunc)
 }
 
 func NewDeleteRule(mark string) *Rule {
@@ -116,7 +123,7 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 		panic("mode undefined")
 	}
 	if mark == "" {
-		panic("invalid mark")
+		panic("mark is missing")
 	}
 	if mark == key {
 		panic("key should not be equal mark")
@@ -134,8 +141,8 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 		panic("batchFunc is missing")
 	}
 
-	if key == "" {
-		panic("invalid key")
+	if mode != ModeReplace && key == "" {
+		panic("key is missing")
 	}
 	key = `"` + strings.ReplaceAll(key, `"`, `\"`) + `"`
 	return &Rule{
@@ -192,12 +199,13 @@ func (e fragEntry) String() string {
 // Marshal maybe overwritten to indent output
 var Marshal = json.Marshal
 
-// EncodeInsertMode writes FRAGMENT marshaled to json.
+// writeForInsertMode writes FRAGMENT marshaled to json.
 //
 // Format: `,<FRAGMENT>`
-func (e *fragEntry) EncodeInsertMode(w io.Writer) (int, error) {
-	if reflect.ValueOf(e.fragment).Kind() != reflect.Struct {
-		panic("insert mode suspects Struct fragment: " + e.String())
+func (e *fragEntry) writeForInsertMode(w io.Writer) (int, error) {
+	v := reflect.Indirect(reflect.ValueOf(e.fragment))
+	if v.Kind() != reflect.Struct {
+		panic("insert mode suspects Struct fragment, got " + v.String() + ": " + e.String())
 	}
 	enc, err := Marshal(e.fragment)
 	if err != nil {
@@ -212,12 +220,29 @@ func (e *fragEntry) EncodeInsertMode(w io.Writer) (int, error) {
 	return w.Write(enc)
 }
 
-func (e *fragEntry) EncodeReplaceMode(w io.Writer) (int, error) {
+func (e *fragEntry) writeForReplaceValueMode(w io.Writer) (int, error) {
 	enc, err := Marshal(e.fragment)
 	if err != nil {
 		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
 	}
 	return w.Write(enc)
+}
+
+// writeForReplaceMode expects fragment to be Struct
+func (e *fragEntry) writeForReplaceMode(w io.Writer) (int, error) {
+	v := reflect.Indirect(reflect.ValueOf(e.fragment))
+	if v.Kind() != reflect.Struct {
+		panic("replace mode suspects Struct fragment, got " + v.String() + ": " + e.String())
+	}
+	enc, err := Marshal(e.fragment)
+	if err != nil {
+		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+	}
+	if bytes.Equal(enc, []byte(`{}`)) {
+		return 0, nil
+	}
+	// trim brackets
+	return w.Write(enc[1 : len(enc)-1])
 }
 
 type fragEntryListIter struct {
@@ -330,16 +355,27 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 		pos int
 	)
 	for _, frag := range fragments {
-		switch frag.rule.mode {
-		case ModeReplace:
-			// ModeReplace writes new value over old mark value:
+		switch mode := frag.rule.mode; mode {
+		case ModeReplaceValue:
+			// ModeReplaceValue writes new fragment over old value:
 			//  {
 			//    "<preparedKey>": <FRAGMENT>
 			//  }
 			b.Write(data[pos:frag.markPos])
 			pos = frag.endPos
-			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
-			_, err := frag.EncodeReplaceMode(&b)       // writes <FRAGMENT>>
+			b.WriteString(frag.rule.preparedKey + `:`)  // writes `"<preparedKey>":`
+			_, err := frag.writeForReplaceValueMode(&b) // writes <FRAGMENT>
+			if err != nil {
+				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+			}
+		case ModeReplace:
+			// ModeReplace writes new fragment over old mark/value pair:
+			//  {
+			//    <FRAGMENT>
+			//  }
+			b.Write(data[pos:frag.markPos])
+			pos = frag.endPos
+			_, err := frag.writeForReplaceMode(&b) // writes <FRAGMENT>
 			if err != nil {
 				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
@@ -353,7 +389,7 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			pos = frag.endPos
 			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
 			b.Write(data[frag.argsPos:frag.endPos])    // writes `value`
-			_, err := frag.EncodeInsertMode(&b)        // writes `,<FRAGMENT>`
+			_, err := frag.writeForInsertMode(&b)      // writes `,<FRAGMENT>`
 			if err != nil {
 				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}

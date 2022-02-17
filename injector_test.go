@@ -10,6 +10,30 @@ import (
 )
 
 func TestProcess(t *testing.T) {
+
+	// generateMeta is example of batch values handling
+	generateMeta := func(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
+		type Output struct {
+			Meta struct {
+				Length int `json:"length"`
+			} `json:"meta"`
+		}
+
+		var entities []interface{}
+		for iterator.Next() {
+			var (
+				output Output
+				value  string
+			)
+			if err := iterator.BindParams(&value); err != nil {
+				panic(err)
+			}
+			output.Meta.Length = len(value)
+			entities = append(entities, output)
+		}
+		return entities, nil
+	}
+
 	tests := []struct {
 		name  string
 		rules []*Rule
@@ -25,12 +49,20 @@ func TestProcess(t *testing.T) {
 			want:  `{"key": "value", "meta": {"length": 5}}`,
 		},
 		{
-			name: "replace",
+			name: "replace value",
 			rules: []*Rule{
-				NewReplaceRule("mark", "key", generateMeta),
+				NewReplaceValueRule("mark", "key", generateMeta),
 			},
 			input: `{"mark": "value"}`,
 			want:  `{"key": {"meta": {"length": 5}}}`,
+		},
+		{
+			name: "replace",
+			rules: []*Rule{
+				NewReplaceRule("mark", generateMeta),
+			},
+			input: `{"mark": "value"}`,
+			want:  `{"meta": {"length": 5}}`,
 		},
 		{
 			name: "delete",
@@ -95,29 +127,6 @@ func prefixedObject(t *testing.T, val string) string {
 		return strings.TrimSuffix(prefix, ",") + "}"
 	}
 	return prefix + val[1:]
-}
-
-// generateMeta is example of batch values handling
-func generateMeta(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
-	type Output struct {
-		Meta struct {
-			Length int `json:"length"`
-		} `json:"meta"`
-	}
-
-	var entities []interface{}
-	for iterator.Next() {
-		var (
-			output Output
-			value  string
-		)
-		if err := iterator.BindParams(&value); err != nil {
-			panic(err)
-		}
-		output.Meta.Length = len(value)
-		entities = append(entities, output)
-	}
-	return entities, nil
 }
 
 func Test_findJSONFragmentEnd(t *testing.T) {
