@@ -270,7 +270,12 @@ func (iter *fragEntryListIter) Count() int {
 
 func (iter *fragEntryListIter) BindParams(v interface{}) error {
 	entry := iter.entries[iter.idx]
-	return json.Unmarshal(iter.data[entry.argsPos:entry.endPos], v)
+	b := iter.data[entry.argsPos:entry.endPos]
+	err := json.Unmarshal(b, v)
+	if err != nil {
+		return fmt.Errorf("%s, %v", b, err)
+	}
+	return nil
 }
 
 // iterateMarks iterates json data using RuleSet regexp like `(,[ \n\r\t]*)?"(mark1|mark2|mark3)"[ \n\r\t]*:`
