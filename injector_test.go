@@ -103,6 +103,69 @@ func TestProcess(t *testing.T) {
 			})
 		})
 	}
+
+	tests = []struct {
+		name  string
+		rules []*Rule
+		input string
+		want  string
+	}{
+		{
+			name: "insert empty",
+			rules: []*Rule{
+				NewInsertRule("mark", "key", EmptyFragmentsGenerator),
+			},
+			input: `{"mark": "value"}`,
+			want:  `{"key": "value"}`,
+		},
+		{
+			name: "replace value empty",
+			rules: []*Rule{
+				NewReplaceValueRule("mark", "key", EmptyFragmentsGenerator),
+			},
+			input: `{"mark": "value"}`,
+			want:  `{"key": {}}`,
+		},
+		{
+			name: "replace empty", // do nothing
+
+			rules: []*Rule{
+				NewReplaceRule("mark", EmptyFragmentsGenerator),
+			},
+			input: `{"mark": "value"}`,
+			want:  `{"mark": "value"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := ProcessParams{
+				Passes: []Pass{{
+					RuleSet: NewRuleSet(tt.rules...),
+					Repeats: 1,
+				}},
+			}
+
+			t.Run("single mark", func(t *testing.T) {
+				got, err := Process(context.Background(), []byte(tt.input), params)
+				require.NoError(t, err)
+				assert.JSONEq(t, tt.want, string(got))
+			})
+
+			t.Run("mark at the start", func(t *testing.T) {
+				input := suffixedObject(t, tt.input) // {"mark":..., suffix}
+				got, err := Process(context.Background(), []byte(input), params)
+				require.NoError(t, err)
+				assert.JSONEq(t, suffixedObject(t, tt.want), string(got))
+			})
+
+			t.Run("mark at the end", func(t *testing.T) {
+				input := prefixedObject(t, tt.input) // {prefix, "mark":...}
+				got, err := Process(context.Background(), []byte(input), params)
+				require.NoError(t, err)
+				assert.JSONEq(t, prefixedObject(t, tt.want), string(got))
+			})
+		})
+	}
 }
 
 func suffixedObject(t *testing.T, val string) string {

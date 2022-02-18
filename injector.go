@@ -374,11 +374,15 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			//    <FRAGMENT>
 			//  }
 			b.Write(data[pos:frag.markPos])
-			pos = frag.endPos
-			_, err := frag.writeForReplaceMode(&b) // writes <FRAGMENT>
+			pos = frag.markPos
+			count, err := frag.writeForReplaceMode(&b) // writes <FRAGMENT>
 			if err != nil {
 				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
+			if count == 0 { // keep old data
+				b.Write(data[pos:frag.endPos])
+			}
+			pos = frag.endPos
 		case ModeInsert:
 			// ModeInsert appends fragment after value as below:
 			//  {
