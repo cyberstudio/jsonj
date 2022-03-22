@@ -343,7 +343,7 @@ func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface
 			return nil, fmt.Errorf("fragments generation error for rule '%s': %v", rule, err)
 		}
 		if len(list) != len(result) {
-			panic("unexpected case")
+			panic(fmt.Sprintf("unexpected case: %d != %d", len(list), len(result)))
 		}
 		for i := range list {
 			list[i].fragment = result[i]
