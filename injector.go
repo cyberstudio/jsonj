@@ -125,7 +125,7 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 	if mark == "" {
 		panic("mark is missing")
 	}
-	if mark == key {
+	if mode != ModeReplaceValue && mark == key {
 		panic("key should not be equal mark")
 	}
 	if mode == ModeDelete {
