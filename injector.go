@@ -156,9 +156,17 @@ func NewRule(mode RuleMode, mark, key string, batchFunc GenerateFragmentBatchFun
 // FragmentIterator allows fragments generators func iterates over json data to be replaced during a pass.
 // See GenerateFragmentBatchFunc implementation examples.
 type FragmentIterator interface {
+	// Next advances the json fragments iterator and reports whether there is another json fragment.
 	Next() bool
+	// Count returns total number of jsons fragments.
 	Count() int
+	// BindParams sets v value from current json fragment.
+	// It panics when receives v type other than bound.
+	// Every call to BindParams, even the first one, must be preceded by a call to Next.
 	BindParams(v interface{}) error
+	// Bytes returns raw bytes of json fragment.
+	// Every call to Bytes, even the first one, must be preceded by a call to Next.
+	Bytes() []byte
 }
 
 // GenerateFragmentBatchFunc returns batch of generated fragments for each of marks
@@ -196,53 +204,55 @@ func (e fragEntry) String() string {
 	return fmt.Sprintf("%s at position %d", e.rule.String(), e.markPos)
 }
 
-// Marshal maybe overwritten to indent output
-var Marshal = json.Marshal
-
 // writeForInsertMode writes FRAGMENT marshaled to json.
 //
 // Format: `,<FRAGMENT>`
-func (e *fragEntry) writeForInsertMode(w io.Writer) (int, error) {
+func (e *fragEntry) writeForInsertMode(b *bytes.Buffer) error {
 	v := reflect.Indirect(reflect.ValueOf(e.fragment))
 	if v.Kind() != reflect.Struct {
 		panic("insert mode suspects Struct fragment, got " + v.String() + ": " + e.String())
 	}
-	enc, err := Marshal(e.fragment)
-	if err != nil {
-		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+	l := b.Len()
+	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
+		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
 	}
-	if bytes.Equal(enc, []byte(`{}`)) {
-		return 0, nil
+	data := b.Bytes()[l : b.Len()-1]
+	if bytes.Equal(data, []byte(`{}`)) {
+		b.Truncate(l)
+		return nil
 	}
-	// trim brackets, add leading comma
-	enc[0] = ','           // leading bracket replaced by comma
-	enc = enc[:len(enc)-1] // closing bracket removed
-	return w.Write(enc)
+	// trim brackets
+	data[0] = ','
+	data[len(data)-1] = ' '
+	return nil
 }
 
-func (e *fragEntry) writeForReplaceValueMode(w io.Writer) (int, error) {
-	enc, err := Marshal(e.fragment)
-	if err != nil {
-		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+func (e *fragEntry) writeForReplaceValueMode(w io.Writer) error {
+	if err := json.NewEncoder(w).Encode(e.fragment); err != nil {
+		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
 	}
-	return w.Write(enc)
+	return nil
 }
 
 // writeForReplaceMode expects fragment to be Struct
-func (e *fragEntry) writeForReplaceMode(w io.Writer) (int, error) {
+func (e *fragEntry) writeForReplaceMode(b *bytes.Buffer) (int, error) {
 	v := reflect.Indirect(reflect.ValueOf(e.fragment))
 	if v.Kind() != reflect.Struct {
 		panic("replace mode suspects Struct fragment, got " + v.String() + ": " + e.String())
 	}
-	enc, err := Marshal(e.fragment)
-	if err != nil {
+	l := b.Len()
+	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
 		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
 	}
-	if bytes.Equal(enc, []byte(`{}`)) {
+	data := b.Bytes()[l : b.Len()-1]
+	if bytes.Equal(data, []byte(`{}`)) {
+		b.Truncate(l)
 		return 0, nil
 	}
 	// trim brackets
-	return w.Write(enc[1 : len(enc)-1])
+	data[0] = ' '
+	data[len(data)-1] = ' '
+	return len(data) - 1, nil
 }
 
 type fragEntryListIter struct {
@@ -278,6 +288,11 @@ func (iter *fragEntryListIter) BindParams(v interface{}) error {
 	return nil
 }
 
+func (iter *fragEntryListIter) Bytes() []byte {
+	entry := iter.entries[iter.idx]
+	return iter.data[entry.argsPos:entry.endPos]
+}
+
 // iterateMarks iterates json data using RuleSet regexp like `(,[ \n\r\t]*)?"(mark1|mark2|mark3)"[ \n\r\t]*:`
 func iterateMarks(
 	data []byte,
@@ -287,11 +302,11 @@ func iterateMarks(
 	i := 0
 	for {
 		// FindSubMatchIndex indexes returns indexes array:
-		// , "key" : "value"
-		// ^^ ^ ^  ^
-		// 0^ ^ ^  1
-		// 23 ^ ^
-		//    4 5
+		// ,   "key" : "value"
+		// ^  ^ ^ ^  ^
+		// 0  ^ ^ ^  1
+		// 2  3 ^ ^
+		//      4 5
 		loc := re.FindSubmatchIndex(data[i:])
 		if loc == nil {
 			break
@@ -353,12 +368,16 @@ func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface
 	return expandDataFragments(data, fragments)
 }
 
+// BufferSizeRatio grows initial buffer size depends on input size
+var BufferSizeRatio = 3
+
 // expandDataFragments returns merged old data and new fragments
 func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 	var (
 		b   bytes.Buffer
 		pos int
 	)
+	b.Grow(len(data) * BufferSizeRatio)
 	for _, frag := range fragments {
 		switch mode := frag.rule.mode; mode {
 		case ModeReplaceValue:
@@ -368,8 +387,8 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			//  }
 			b.Write(data[pos:frag.markPos])
 			pos = frag.endPos
-			b.WriteString(frag.rule.preparedKey + `:`)  // writes `"<preparedKey>":`
-			_, err := frag.writeForReplaceValueMode(&b) // writes <FRAGMENT>
+			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
+			err := frag.writeForReplaceValueMode(&b)   // writes <FRAGMENT>
 			if err != nil {
 				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
@@ -398,7 +417,7 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			pos = frag.endPos
 			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
 			b.Write(data[frag.argsPos:frag.endPos])    // writes `value`
-			_, err := frag.writeForInsertMode(&b)      // writes `,<FRAGMENT>`
+			err := frag.writeForInsertMode(&b)         // writes `,<FRAGMENT>`
 			if err != nil {
 				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}

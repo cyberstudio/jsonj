@@ -1,6 +1,7 @@
 package jsonj
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
@@ -281,4 +282,129 @@ func Test_findJSONFragmentEnd(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func BenchmarkProcess(b *testing.B) {
+	input := []byte(`{
+    "pet_id": 123456789,
+    "pet_uuid": "90ceebf1-3a5b-48a1-9939-16612ddf2e55",
+    "pet_family_id": 123456789,
+    "name": "KittyCat",
+    "pet_children":[2,3]
+    },`)
+	input = bytes.Repeat(input, 100)
+
+	b.Run("insert mode", func(b *testing.B) {
+		b.ReportAllocs()
+		input := input
+		gen := func(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
+			type Entity struct {
+				URL string `json:"url"`
+			}
+			result := make([]interface{}, 0, iterator.Count())
+			for iterator.Next() {
+				result = append(result, &Entity{
+					URL: "https://zoo.com/pet/2491388e-d427-4b53-999e-4652293529d8",
+				})
+			}
+			return result, nil
+		}
+		params := ProcessParams{
+			Passes: []Pass{{
+				RuleSet: NewRuleSet(
+					NewInsertRule("pet_uuid", "uuid", gen),
+				),
+				Repeats: 1,
+			}},
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			_, _ = Process(context.Background(), input, params)
+		}
+	})
+
+	b.Run("replace mode", func(b *testing.B) {
+		b.ReportAllocs()
+		input := input
+		gen := func(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
+			result := make([]interface{}, 0, iterator.Count())
+			type Result struct {
+				Children string `json:"children"`
+			}
+			for iterator.Next() {
+				result = append(result, &Result{Children: "hello kitty"})
+			}
+			return result, nil
+		}
+
+		params := ProcessParams{
+			Passes: []Pass{{
+				RuleSet: NewRuleSet(
+					NewReplaceRule("pet_children", gen),
+				),
+				Repeats: 1,
+			}},
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			_, _ = Process(context.Background(), input, params)
+		}
+
+	})
+
+	b.Run("replace value mode", func(b *testing.B) {
+		b.ReportAllocs()
+		input := input
+		gen := func(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
+			result := make([]interface{}, 0, iterator.Count())
+			type Result struct {
+				FamilyName string `json:"family_name"`
+			}
+			for iterator.Next() {
+				result = append(result, &Result{
+					FamilyName: "family",
+				})
+			}
+			return result, nil
+		}
+
+		params := ProcessParams{
+			Passes: []Pass{{
+				RuleSet: NewRuleSet(
+					NewReplaceValueRule("pet_family_id", "family_name", gen),
+				),
+				Repeats: 1,
+			}},
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			_, _ = Process(context.Background(), input, params)
+		}
+	})
+
+	b.Run("delete mode", func(b *testing.B) {
+		b.ReportAllocs()
+		input := input
+
+		params := ProcessParams{
+			Passes: []Pass{{
+				RuleSet: NewRuleSet(
+					NewDeleteRule("pet_id"),
+				),
+				Repeats: 1,
+			}},
+		}
+
+		b.ResetTimer()
+
+		for n := 0; n < b.N; n++ {
+			_, _ = Process(context.Background(), input, params)
+		}
+	})
 }
