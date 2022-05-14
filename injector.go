@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // RuleSet describes set of Rule to expand raw JSON data.
@@ -179,16 +180,27 @@ type ProcessParams struct {
 }
 
 // Process passes data changes using ProcessParams
-func Process(ctx context.Context, data []byte, params ProcessParams) (b []byte, err error) {
+func Process(ctx context.Context, input []byte, params ProcessParams) ([]byte, error) {
+	if len(input) <= 2 { // quickfix for [], {}
+		return input, nil
+	}
+	if len(params.Passes) == 0 {
+		return input, nil
+	}
+
+	data, buf := bytes.NewBuffer(input), newBytesBuffer(len(input))
+
 	for _, pass := range params.Passes {
 		for i := 0; i < pass.Repeats; i++ {
-			data, err = doPassBatch(ctx, data, pass.RuleSet, params.Params)
-			if err != nil {
+			if err := doPassBatch(ctx, buf, data.Bytes(), pass.RuleSet, params.Params); err != nil {
 				return nil, fmt.Errorf("unable to do pass %d: %v", i, err)
 			}
+			data, buf = buf, data
+			buf.Reset()
 		}
 	}
-	return data, nil
+	freeBuf(buf)
+	return data.Bytes(), nil
 }
 
 type fragEntry struct {
@@ -326,7 +338,7 @@ func iterateMarks(
 	}
 }
 
-func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface{}) ([]byte, error) {
+func doPassBatch(ctx context.Context, buf *bytes.Buffer, data []byte, set *RuleSet, flags interface{}) error {
 	var fragments []*fragEntry
 	entriesPerRule := make(map[*Rule][]*fragEntry)
 
@@ -347,7 +359,8 @@ func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface
 		entriesPerRule[rule] = append(entriesPerRule[rule], fragments[n])
 	})
 	if len(entriesPerRule) == 0 {
-		return data, nil
+		buf.Write(data)
+		return nil
 	}
 
 	// generate new fragments of each fragEntry
@@ -355,7 +368,7 @@ func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface
 		iter := newFragEntryListIter(list, data)
 		result, err := rule.genBatch(ctx, iter, flags)
 		if err != nil {
-			return nil, fmt.Errorf("fragments generation error for rule '%s': %v", rule, err)
+			return fmt.Errorf("fragments generation error for rule '%s': %v", rule, err)
 		}
 		if len(list) != len(result) {
 			panic(fmt.Sprintf("unexpected case: %d != %d", len(list), len(result)))
@@ -365,19 +378,45 @@ func doPassBatch(ctx context.Context, data []byte, set *RuleSet, flags interface
 		}
 	}
 
-	return expandDataFragments(data, fragments)
+	return expandDataFragments(buf, data, fragments)
 }
 
 // BufferSizeRatio grows initial buffer size depends on input size
 var BufferSizeRatio = 3
 
+func newBytesBuffer(inputSize int) *bytes.Buffer {
+	buf, ok := bytesBufferPool.Get().(*bytes.Buffer)
+	if !ok {
+		buf = bytes.NewBuffer(make([]byte, 0, inputSize*BufferSizeRatio))
+	} else {
+		buf.Grow(inputSize * BufferSizeRatio)
+	}
+	return buf
+}
+
+func freeBuf(buf *bytes.Buffer) {
+	if buf.Cap() > MaxBufferSize {
+		return
+	}
+	buf.Reset()
+	bytesBufferPool.Put(buf)
+}
+
+const MB = 1 << 20
+
+var (
+	// bytesBufferPool keeps bytes buffers to be reused to decrease memory allocations
+	bytesBufferPool sync.Pool
+
+	// MaxBufferSize limits pool buffers size.
+	// Remember to increase if output json expected to be more
+	MaxBufferSize = 5 * MB
+)
+
 // expandDataFragments returns merged old data and new fragments
-func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
-	var (
-		b   bytes.Buffer
-		pos int
-	)
-	b.Grow(len(data) * BufferSizeRatio)
+func expandDataFragments(b *bytes.Buffer, data []byte, fragments []*fragEntry) error {
+	var pos int
+
 	for _, frag := range fragments {
 		switch mode := frag.rule.mode; mode {
 		case ModeReplaceValue:
@@ -388,9 +427,9 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			b.Write(data[pos:frag.markPos])
 			pos = frag.endPos
 			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
-			err := frag.writeForReplaceValueMode(&b)   // writes <FRAGMENT>
+			err := frag.writeForReplaceValueMode(b)    // writes <FRAGMENT>
 			if err != nil {
-				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
 		case ModeReplace:
 			// ModeReplace writes new fragment over old mark/value pair:
@@ -399,9 +438,9 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			//  }
 			b.Write(data[pos:frag.markPos])
 			pos = frag.markPos
-			count, err := frag.writeForReplaceMode(&b) // writes <FRAGMENT>
+			count, err := frag.writeForReplaceMode(b) // writes <FRAGMENT>
 			if err != nil {
-				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
 			if count == 0 { // keep old data
 				b.Write(data[pos:frag.endPos])
@@ -417,9 +456,9 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			pos = frag.endPos
 			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
 			b.Write(data[frag.argsPos:frag.endPos])    // writes `value`
-			err := frag.writeForInsertMode(&b)         // writes `,<FRAGMENT>`
+			err := frag.writeForInsertMode(b)          // writes `,<FRAGMENT>`
 			if err != nil {
-				return nil, fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
 			}
 		case ModeDelete:
 			if frag.commaPos > 0 { // leading comma exists
@@ -434,8 +473,8 @@ func expandDataFragments(data []byte, fragments []*fragEntry) ([]byte, error) {
 			}
 		}
 	}
-	b.Write(data[pos:]) // write tail
-	return b.Bytes(), nil
+	_, err := b.Write(data[pos:]) // write tail
+	return err
 }
 
 var (
