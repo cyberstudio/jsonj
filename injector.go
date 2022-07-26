@@ -246,12 +246,7 @@ func (e *fragEntry) writeForReplaceValueMode(w io.Writer) error {
 	return nil
 }
 
-// writeForReplaceMode expects fragment to be Struct
 func (e *fragEntry) writeForReplaceMode(b *bytes.Buffer) (int, error) {
-	v := reflect.Indirect(reflect.ValueOf(e.fragment))
-	if v.Kind() != reflect.Struct {
-		panic("replace mode suspects Struct fragment, got " + v.String() + ": " + e.String())
-	}
 	l := b.Len()
 	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
 		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
