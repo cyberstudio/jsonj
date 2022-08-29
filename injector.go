@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"reflect"
 	"regexp"
 	"strings"
@@ -225,41 +224,50 @@ func (e *fragEntry) writeForInsertMode(b *bytes.Buffer) error {
 		panic("insert mode suspects Struct fragment, got " + v.String() + ": " + e.String())
 	}
 	l := b.Len()
-	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
-		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+	if err := e.writeFragment(b); err != nil {
+		return err
 	}
-	data := b.Bytes()[l : b.Len()-1]
+	data := b.Bytes()[l:b.Len()]
 	if bytes.Equal(data, []byte(`{}`)) {
 		b.Truncate(l)
 		return nil
 	}
 	// trim brackets
 	data[0] = ','
-	data[len(data)-1] = ' '
+	b.Truncate(b.Len() - 1)
 	return nil
 }
 
-func (e *fragEntry) writeForReplaceValueMode(w io.Writer) error {
-	if err := json.NewEncoder(w).Encode(e.fragment); err != nil {
-		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
-	}
-	return nil
+func (e *fragEntry) writeForReplaceValueMode(buf *bytes.Buffer) error {
+	return e.writeFragment(buf)
 }
 
 func (e *fragEntry) writeForReplaceMode(b *bytes.Buffer) (int, error) {
 	l := b.Len()
-	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
-		return 0, fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+	if err := e.writeFragment(b); err != nil {
+		return 0, err
 	}
-	data := b.Bytes()[l : b.Len()-1]
+	data := b.Bytes()[l:b.Len()]
 	if bytes.Equal(data, []byte(`{}`)) {
 		b.Truncate(l)
 		return 0, nil
 	}
 	// trim brackets
 	data[0] = ' '
-	data[len(data)-1] = ' '
+	b.Truncate(b.Len() - 1)
 	return len(data) - 1, nil
+}
+
+func (e *fragEntry) writeFragment(b *bytes.Buffer) error {
+	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
+		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+	}
+	ptr := &b.Bytes()[b.Len()-1]
+	if *ptr == '\n' {
+		// trim extra space
+		b.Truncate(b.Len() - 1)
+	}
+	return nil
 }
 
 type fragEntryListIter struct {
