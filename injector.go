@@ -260,7 +260,7 @@ func (e *fragEntry) writeForReplaceMode(b *bytes.Buffer) (int, error) {
 
 func (e *fragEntry) writeFragment(b *bytes.Buffer) error {
 	if err := json.NewEncoder(b).Encode(e.fragment); err != nil {
-		return fmt.Errorf("unable to encode fragment '%s': %v", e, err)
+		return fmt.Errorf("unable to encode fragment '%s': %v", e.fragment, err)
 	}
 	ptr := &b.Bytes()[b.Len()-1]
 	if *ptr == '\n' {
@@ -432,7 +432,7 @@ func expandDataFragments(b *bytes.Buffer, data []byte, fragments []*fragEntry) e
 			b.WriteString(frag.rule.preparedKey + `:`) // writes `"<preparedKey>":`
 			err := frag.writeForReplaceValueMode(b)    // writes <FRAGMENT>
 			if err != nil {
-				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to write value replacement for mark '%s': %v", frag.rule.mark, err)
 			}
 		case ModeReplace:
 			// ModeReplace writes new fragment over old mark/value pair:
@@ -443,7 +443,7 @@ func expandDataFragments(b *bytes.Buffer, data []byte, fragments []*fragEntry) e
 			pos = frag.markPos
 			count, err := frag.writeForReplaceMode(b) // writes <FRAGMENT>
 			if err != nil {
-				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to write key-value replacement for mark '%s': %v", frag.rule.mark, err)
 			}
 			if count == 0 { // keep old data
 				b.Write(data[pos:frag.endPos])
@@ -461,7 +461,7 @@ func expandDataFragments(b *bytes.Buffer, data []byte, fragments []*fragEntry) e
 			b.Write(data[frag.argsPos:frag.endPos])    // writes `value`
 			err := frag.writeForInsertMode(b)          // writes `,<FRAGMENT>`
 			if err != nil {
-				return fmt.Errorf("unable to encode fragment '%s': %v", frag, err)
+				return fmt.Errorf("unable to write insert for mark '%s': %v", frag.rule.mark, err)
 			}
 		case ModeDelete:
 			if frag.commaPos > 0 { // leading comma exists
