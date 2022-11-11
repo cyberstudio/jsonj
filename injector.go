@@ -500,7 +500,7 @@ func findJSONFragmentEnd(data []byte) int {
 		if c == '[' || c == '{' {
 			return i + findJSONValueEnd(data[i:]) + 1
 		}
-		if c == '-' || ('0' <= c && c <= '9') { //nolint:gocritic
+		if c == '-' || ('0' <= c && c <= '9') {
 			return i + findJSONNumberEnd(data[i:])
 		}
 		if c == 'n' && bytes.Equal(data[i:i+len(nullLiteral)], nullLiteral) {
