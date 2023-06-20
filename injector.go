@@ -192,7 +192,7 @@ func Process(ctx context.Context, input []byte, params ProcessParams) ([]byte, e
 	for _, pass := range params.Passes {
 		for i := 0; i < pass.Repeats; i++ {
 			if err := doPassBatch(ctx, buf, data.Bytes(), pass.RuleSet, params.Params); err != nil {
-				return nil, fmt.Errorf("unable to do pass %d: %v", i, err)
+				return nil, fmt.Errorf("unable to do pass %d: %w", i, err)
 			}
 			data, buf = buf, data
 			buf.Reset()
@@ -371,7 +371,7 @@ func doPassBatch(ctx context.Context, buf *bytes.Buffer, data []byte, set *RuleS
 		iter := newFragEntryListIter(list, data)
 		result, err := rule.genBatch(ctx, iter, flags)
 		if err != nil {
-			return fmt.Errorf("fragments generation error for rule '%s': %v", rule, err)
+			return fmt.Errorf("fragments generation error for rule '%s': %w", rule, err)
 		}
 		if len(list) != len(result) {
 			panic(fmt.Sprintf("unexpected case: %d != %d", len(list), len(result)))
