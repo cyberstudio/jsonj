@@ -1,0 +1,73 @@
+run:
+  deadline: 10m
+  tests: false
+  modules-download-mode: vendor
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  gocyclo:
+    min-complexity: 15
+  goconst:
+    min-len: 2
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 120
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      - wrapperFunc
+      - importShadow
+      - unnamedResult
+      - paramTypeCombine
+      - emptyStringTest
+      - nestingReduce
+      - elseif
+      - ifElseChain
+      - whyNoLint
+      - unnecessaryDefer
+      - commentFormatting
+      - commentedOutCode
+      - emptyFallthrough
+  gosec:
+    excludes:
+      - G112
+linters:
+  disable-all: true
+  enable:
+    - dupl
+    - errcheck
+    - errorlint
+    - exportloopref
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - nilerr
+    - nolintlint
+    - revive
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+#   - unused
+
+issues:
+  exclude-rules:
+    - text: "non-wrapping format verb for fmt.Errorf. Use `%w` to format errors"
+      linters:
+        - errorlint
