@@ -64,7 +64,7 @@ linters:
     - typecheck
     - unconvert
     - unparam
-#   - unused
+    - unused
 
 issues:
   exclude-rules:

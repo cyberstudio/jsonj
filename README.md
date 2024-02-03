@@ -1,5 +1,7 @@
 # JSONJ
 
+[![Go](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml/badge.svg)](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml) [![GoDoc](https://godoc.org/github.com/cyberstudio/jsonj?status.svg)](https://godoc.org/github.com/cyberstudio/jsonj) [![Go Report Card](https://goreportcard.com/badge/github.com/cyberstudio/jsonj)](https://goreportcard.com/report/github.com/cyberstudio/jsonj)
+
 JSONJ can be used to manipulate raw json input using _marks_ and custom _fragments generators_.
 * Library guarantees valid json output syntax;
 * Library doesn't validate output json semantic like unique keys.
