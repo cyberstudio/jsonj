@@ -2,16 +2,20 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
+      with:
+        fetch-tags: true
+        fetch-depth: 0
 
     - name: Set up Go
       uses: actions/setup-go@v4
@@ -29,3 +33,9 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+    - name: Publish doc
+      if: ${{ !env.ACT }}  # skip if run locally with ACT
+      run: |
+        export latest="$(git describe --tags `git rev-list --tags --max-count=1`)"
+        curl https://proxy.golang.org/github.com/cyberstudio/jsonj/@v/$latest.info
