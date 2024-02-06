@@ -3,11 +3,10 @@ package jsonj
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcess(t *testing.T) {
@@ -85,22 +84,28 @@ func TestProcess(t *testing.T) {
 
 			t.Run("single mark", func(t *testing.T) {
 				got, err := Process(context.Background(), []byte(tt.input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, tt.want, string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, tt.want, string(got))
 			})
 
 			t.Run("mark at the start", func(t *testing.T) {
 				input := suffixedObject(t, tt.input) // {"mark":..., suffix}
 				got, err := Process(context.Background(), []byte(input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, suffixedObject(t, tt.want), string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, suffixedObject(t, tt.want), string(got))
 			})
 
 			t.Run("mark at the end", func(t *testing.T) {
 				input := prefixedObject(t, tt.input) // {prefix, "mark":...}
 				got, err := Process(context.Background(), []byte(input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, prefixedObject(t, tt.want), string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, prefixedObject(t, tt.want), string(got))
 			})
 		})
 	}
@@ -148,22 +153,28 @@ func TestProcess(t *testing.T) {
 
 			t.Run("single mark", func(t *testing.T) {
 				got, err := Process(context.Background(), []byte(tt.input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, tt.want, string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, tt.want, string(got))
 			})
 
 			t.Run("mark at the start", func(t *testing.T) {
 				input := suffixedObject(t, tt.input) // {"mark":..., suffix}
 				got, err := Process(context.Background(), []byte(input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, suffixedObject(t, tt.want), string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, suffixedObject(t, tt.want), string(got))
 			})
 
 			t.Run("mark at the end", func(t *testing.T) {
 				input := prefixedObject(t, tt.input) // {prefix, "mark":...}
 				got, err := Process(context.Background(), []byte(input), params)
-				require.NoError(t, err)
-				assert.JSONEq(t, prefixedObject(t, tt.want), string(got))
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertJSONEqual(t, prefixedObject(t, tt.want), string(got))
 			})
 		})
 	}
@@ -279,7 +290,9 @@ func Test_findJSONFragmentEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := findJSONFragmentEnd(tt.data)
-			assert.Equal(t, tt.want, got)
+			if tt.want != got {
+				t.Errorf("Not equal:\n  expected: %v\n  actual: %v", tt.want, got)
+			}
 		})
 	}
 }
@@ -407,4 +420,22 @@ func BenchmarkProcess(b *testing.B) {
 			_, _ = Process(context.Background(), input, params)
 		}
 	})
+}
+
+func assertJSONEqual(t *testing.T, expected, actual string) {
+	t.Helper()
+
+	var expectedJSON, actualJSON interface{}
+
+	if err := json.Unmarshal([]byte(expected), &expectedJSON); err != nil {
+		panic("expected value is not a valid json: " + err.Error())
+	}
+
+	if err := json.Unmarshal([]byte(actual), &actualJSON); err != nil {
+		t.Fatalf("actual value is not a valid json: '%s'", err)
+	}
+
+	if !reflect.DeepEqual(expectedJSON, actualJSON) {
+		t.Errorf("Not equal:\n  expected: %s\n  actual: %s", expectedJSON, actualJSON)
+	}
 }
