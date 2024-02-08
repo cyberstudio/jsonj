@@ -1,7 +1,0 @@
-.*        export-ignore
-*.md      export-ignore
-*.mod     export-ignore
-*.sum     export-ignore
-*.yml     export-ignore
-LICENSE   export-ignore
-*_test.go export-ignore
