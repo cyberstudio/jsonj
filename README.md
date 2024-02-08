@@ -3,13 +3,13 @@
 [![Go](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml/badge.svg)](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml) [![GoDoc](https://godoc.org/github.com/cyberstudio/jsonj?status.svg)](https://godoc.org/github.com/cyberstudio/jsonj) [![Go Report Card](https://goreportcard.com/badge/github.com/cyberstudio/jsonj)](https://goreportcard.com/report/github.com/cyberstudio/jsonj)
 
 JSONJ can be used to manipulate raw json input using _marks_ and custom _fragments generators_.
-* Library guarantees valid json output syntax;
-* Library doesn't validate output json semantic like unique keys.
+* Library guarantees a valid json output syntax;
+* Library doesn't validate an output json semantic like unique keys.
 
 ## Marks
 
-One can apply generator to  _marks_ of json input. Each _mark_ is json key name.
-For example, `uuid` and `id` maybe used as _mark_.
+One can apply generator to  _marks_ of json input. Each _mark_ is a json key name.
+For example, `uuid` and `id` can be used as _mark_.
 ```json
 [
     {
@@ -23,26 +23,26 @@ For example, `uuid` and `id` maybe used as _mark_.
 ]
 ```
 
-_Mark_ maybe renamed in result of _operation_.  It depends on `operation` mode and its rules.
+_Mark_ can be renamed in result of _operation_.  It depends on `operation` mode and its rules.
 
-Advice: wrap _marks_ by special chars, i.e. `__uuid__` and unwrap during `operation`.
+Advice: wrap _marks_ in special symbols, i.e. `__uuid__` and unwrap during `operation`.
 
 
 ## Operations
-Library supports number of operations, named _Mode_:
+The library supports a number of operations, named _Mode_:
   * `ModeInsert`: insert key/value pair after the _mark_.
-  * `ModeReplaceValue`: replace value, or convert it;
+  * `ModeReplaceValue`: replace or convert value;
   * `ModeReplace`: replace entire key/value pair;
   * `ModeDelete`: delete key/value.
 
 ## Fragments generators
 
-Type `GenerateFragmentBatchFunc` describes interface of generators.
-Key feature of generators is batch processing. Batches speed up result output.
+Type `GenerateFragmentBatchFunc` describes an interface of generators.
+Batch processing is a key feature of generators. Batches speed up the result output.
 
 Example:
 ```go
-// GeneratorParams customize generator behavior
+// GeneratorParams customizes generator behavior
 type GeneratorParams struct{
     EmbedObjectURL bool
     BaseURL        string
