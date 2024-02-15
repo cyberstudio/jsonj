@@ -2,13 +2,16 @@
 
 [![Go](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml/badge.svg)](https://github.com/cyberstudio/jsonj/actions/workflows/go.yml) [![GoDoc](https://godoc.org/github.com/cyberstudio/jsonj?status.svg)](https://godoc.org/github.com/cyberstudio/jsonj) [![Go Report Card](https://goreportcard.com/badge/github.com/cyberstudio/jsonj)](https://goreportcard.com/report/github.com/cyberstudio/jsonj)
 
-JSONJ can be used to manipulate raw json input using _marks_ and custom _fragments generators_.
-* Library guarantees a valid json output syntax;
-* Library doesn't validate an output json semantic like unique keys.
+The library seeks for marks in input json and applies fragment generators, producing a new json. 
+It works with rules that are combinations or marks and generators.
+
+The library guarantees a valid output json syntax on valid input json. 
+Also, it is possible to generate a semantically invalid json if fragment generators are not correct. 
+For example, an incorrect fragment generator can produce duplicate object keys.
 
 ## Marks
 
-One can apply generator to  _marks_ of json input. Each _mark_ is a json key name.
+Each _mark_ is an object key name. One can apply generator to _marks_ of input.
 For example, `uuid` and `id` can be used as _mark_.
 ```json
 [
@@ -29,16 +32,16 @@ Advice: wrap _marks_ in special symbols, i.e. `__uuid__` and unwrap during `oper
 
 
 ## Operations
+
 The library supports a number of operations, named _Mode_:
-  * `ModeInsert`: insert key/value pair after the _mark_.
-  * `ModeReplaceValue`: replace or convert value;
-  * `ModeReplace`: replace entire key/value pair;
+  * `ModeInsert`: insert key/value pair after the _mark_,
+  * `ModeReplace`: replace the entire key/value pair,
+  * `ModeReplaceValue`: replace or convert value and keep key as is,
   * `ModeDelete`: delete key/value.
 
 ## Fragments generators
 
-Type `GenerateFragmentBatchFunc` describes an interface of generators.
-Batch processing is a key feature of generators. Batches speed up the result output.
+Implement GenerateFragmentBatchFunc interface to create a custom fragment generator.
 
 Example:
 ```go
@@ -74,3 +77,5 @@ func Generator(ctx context.Context, iterator jsonj.FragmentIterator, p interface
     return result, nil
 }
 ```
+
+Batch processing is a key feature of generators. It speeds up the result output.
