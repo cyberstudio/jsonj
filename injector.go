@@ -312,7 +312,7 @@ func (iter *fragEntryListIter) Bytes() []byte {
 func iterateMarks(
 	data []byte,
 	re *regexp.Regexp,
-	callback func(mark string, pos, valuePos, endPos, commaPos int),
+	callback func(mark []byte, pos, valuePos, endPos, commaPos int),
 ) {
 	i := 0
 	for {
@@ -337,29 +337,34 @@ func iterateMarks(
 		i += findJSONFragmentEnd(data[i:])
 		endPos := i
 
-		callback(string(mark), markPos, argsPos, endPos, commaPos)
+		callback(mark, markPos, argsPos, endPos, commaPos)
 	}
 }
 
 func doPassBatch(ctx context.Context, buf *bytes.Buffer, data []byte, set *RuleSet, flags interface{}) error {
 	var fragments []*fragEntry
 	entriesPerRule := make(map[*Rule][]*fragEntry)
+	const initialEntryCount = 32
 
 	// group marks by rules to process their batches
-	iterateMarks(data, set.regexp(), func(mark string, pos, valuePos, endPos, commaPos int) {
-		rule, ok := set.rules[mark]
+	iterateMarks(data, set.regexp(), func(mark []byte, pos, valuePos, endPos, commaPos int) {
+		rule, ok := set.rules[string(mark)]
 		if !ok {
-			panic("none rule specified for mark: " + mark)
+			panic("none rule specified for mark: " + string(mark))
 		}
 		n := len(fragments)
 		fragments = append(fragments, &fragEntry{
-			rule:     set.rules[mark],
+			rule:     rule,
 			commaPos: commaPos,
 			markPos:  pos,
 			argsPos:  valuePos,
 			endPos:   endPos,
 		})
-		entriesPerRule[rule] = append(entriesPerRule[rule], fragments[n])
+		entries := entriesPerRule[rule]
+		if entries == nil {
+			entries = make([]*fragEntry, 0, initialEntryCount)
+		}
+		entriesPerRule[rule] = append(entries, fragments[n])
 	})
 	if len(entriesPerRule) == 0 {
 		buf.Write(data)
@@ -592,9 +597,9 @@ func findCommaPos(data []byte) (int, bool) {
 }
 
 func EmptyFragmentsGenerator(_ context.Context, iterator FragmentIterator, _ interface{}) ([]interface{}, error) {
-	var entities []interface{}
-	for iterator.Next() {
-		entities = append(entities, struct{}{})
+	entities := make([]interface{}, iterator.Count())
+	for i := 0; iterator.Next(); i++ {
+		entities[i] = struct{}{}
 	}
 	return entities, nil
 }
