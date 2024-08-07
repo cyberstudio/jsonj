@@ -1,0 +1,23 @@
+name: Questions for Developers
+description: Ask a question to the project developers.
+title: "[Question] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to fill out this question form. Please provide as many details as possible to help us understand your question better.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: Describe your question in as much detail as possible.
+      placeholder: Write your question here.
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        If you have further questions or discussions, please create a [Q&A discussion](https://github.com/cyberstudio/jsonj/discussions/new?category=q-a) based on this issue.
