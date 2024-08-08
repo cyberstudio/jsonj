@@ -74,3 +74,8 @@ func Generator(ctx context.Context, iterator jsonj.FragmentIterator, p interface
     return result, nil
 }
 ```
+
+## Reporting Issues
+
+- For questions or further assistance, please check existing issues or create a new one as needed.
+- If you encounter a problem or have a question, please create an [issue using the provided templates](https://github.com/cyberstudio/jsonj/issues/new/choose).

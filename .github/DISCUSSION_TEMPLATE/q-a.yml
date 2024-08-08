@@ -1,0 +1,32 @@
+title: "[Q&A] "
+labels: ["Q&A"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for starting a Q&A discussion! Please provide as much detail as possible to help others understand and answer your question effectively.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: "Please describe your question in detail. Include any relevant context or background information."
+      placeholder: |
+        Describe your question here. What is your question?
+    validations:
+      required: true
+
+  - type: input
+    id: related-issue
+    attributes:
+      label: Related Issue
+      description: "If your question is related to a specific issue, you can provide a link to that issue here. (Optional)"
+      placeholder: |
+        e.g., #123 or https://github.com/cyberstudio/jsonj/issues/123
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        _Thank you for providing the details! Please be patient as others review and respond to your question._
