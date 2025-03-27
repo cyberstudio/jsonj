@@ -1,56 +1,17 @@
+version: "2"
 run:
-  deadline: 10m
-  tests: false
   modules-download-mode: readonly
-
-linters-settings:
-  govet:
-    check-shadowing: true
-  gocyclo:
-    min-complexity: 15
-  goconst:
-    min-len: 2
-    min-occurrences: 3
-  misspell:
-    locale: US
-  lll:
-    line-length: 120
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - performance
-      - style
-    disabled-checks:
-      - wrapperFunc
-      - importShadow
-      - unnamedResult
-      - paramTypeCombine
-      - emptyStringTest
-      - nestingReduce
-      - elseif
-      - ifElseChain
-      - whyNoLint
-      - unnecessaryDefer
-      - commentFormatting
-      - commentedOutCode
-      - emptyFallthrough
-  gosec:
-    excludes:
-      - G112
+  tests: false
 linters:
-  disable-all: true
+  default: none
   enable:
     - dupl
     - errcheck
     - errorlint
-    - exportloopref
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
@@ -60,14 +21,63 @@ linters:
     - nolintlint
     - revive
     - staticcheck
-    - stylecheck
-    - typecheck
     - unconvert
     - unparam
     - unused
-
-issues:
-  exclude-rules:
-    - text: "non-wrapping format verb for fmt.Errorf. Use `%w` to format errors"
-      linters:
-        - errorlint
+  settings:
+    goconst:
+      min-len: 2
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+        - importShadow
+        - unnamedResult
+        - paramTypeCombine
+        - emptyStringTest
+        - nestingReduce
+        - elseif
+        - ifElseChain
+        - whyNoLint
+        - unnecessaryDefer
+        - commentFormatting
+        - commentedOutCode
+        - emptyFallthrough
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G112
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errorlint
+        text: non-wrapping format verb for fmt.Errorf. Use `%w` to format errors
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
